@@ -1,4 +1,4 @@
-# My-Projects
+
 # My Projects
 
 Welcome to **My Projects**, a collection of diverse and innovative projects showcasing my skills, creativity, and passion for solving real-world problems. Each project focuses on a specific domain or use case, such as cybersecurity, data analysis, and more.
