@@ -7,11 +7,9 @@ Whether you're interested in exploring threat intelligence, automation tools, or
 
 This repository serves as a portfolio of my work, featuring projects that I have developed and maintained. Each project is designed to address a unique challenge, providing solutions that are practical and impactful.
 
-(https://github.com/Venkatatadu/My-Projects/blob/main/Threat-Intelligence-Aggregator)
+(https://github.com/Venkatatadu/)
 
 ---
-
-Add descriptions for other projects here as you develop them.
 
 ## Technologies Used
 
