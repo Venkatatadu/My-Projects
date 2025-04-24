@@ -3,8 +3,6 @@ This repository is a collection of diverse projects that showcase my technical s
 
 Whether you're interested in exploring threat intelligence, automation tools, or unique programming challenges, this repository serves as a portfolio of my work and dedication to continuous learning and development.
 
-Feel free to explore, contribute, or share feedback!
-
 ## Overview
 
 This repository serves as a portfolio of my work, featuring projects that I have developed and maintained. Each project is designed to address a unique challenge, providing solutions that are practical and impactful.
