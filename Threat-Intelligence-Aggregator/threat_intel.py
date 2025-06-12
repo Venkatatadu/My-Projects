@@ -3,19 +3,38 @@ import os
 import ipaddress
 import logging
 import json
+import sys
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
-# Load API keys from environment variables
+# Load API keys securely
 ABUSEIPDB_API_KEY = os.getenv("ABUSEIPDB_API_KEY")
 VT_API_KEY = os.getenv("VT_API_KEY")
 
 if not ABUSEIPDB_API_KEY or not VT_API_KEY:
-    logging.error("Missing API keys. Set them as environment variables.")
-    exit()
+    logging.error("API keys not set. Use environment variables for ABUSEIPDB_API_KEY and VT_API_KEY.")
+    sys.exit(1)
+
+# Setup session with retry logic
+def create_session():
+    session = requests.Session()
+    retry_strategy = Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=[429, 500, 502, 503, 504],
+        raise_on_status=False
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("https://", adapter)
+    return session
+
+session = create_session()
 
 def check_abuseipdb(ip):
+    """Check IP reputation on AbuseIPDB"""
     url = "https://api.abuseipdb.com/api/v2/check"
     headers = {
         "Key": ABUSEIPDB_API_KEY,
@@ -26,61 +45,65 @@ def check_abuseipdb(ip):
         "maxAgeInDays": 90
     }
     try:
-        response = requests.get(url, headers=headers, params=params)
+        response = session.get(url, headers=headers, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
         return {
             "source": "AbuseIPDB",
-            "abuse_score": data["data"]["abuseConfidenceScore"],
-            "country": data["data"]["countryCode"],
-            "total_reports": data["data"]["totalReports"]
+            "abuse_score": data["data"].get("abuseConfidenceScore"),
+            "country": data["data"].get("countryCode"),
+            "total_reports": data["data"].get("totalReports")
         }
-    except requests.exceptions.RequestException as e:
-        logging.error(f"AbuseIPDB API error: {e}")
-        return None
+    except Exception as e:
+        logging.warning(f"AbuseIPDB error for IP {ip}: {e}")
+        return {"source": "AbuseIPDB", "error": str(e)}
 
 def check_virustotal(ip):
+    """Check IP reputation on VirusTotal"""
     url = f"https://www.virustotal.com/api/v3/ip_addresses/{ip}"
     headers = {
         "x-apikey": VT_API_KEY
     }
     try:
-        response = requests.get(url, headers=headers)
+        response = session.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         data = response.json()
+        stats = data["data"]["attributes"]["last_analysis_stats"]
         return {
             "source": "VirusTotal",
-            "malicious_votes": data["data"]["attributes"]["last_analysis_stats"]["malicious"],
-            "harmless_votes": data["data"]["attributes"]["last_analysis_stats"]["harmless"]
+            "malicious_votes": stats.get("malicious"),
+            "harmless_votes": stats.get("harmless")
         }
-    except requests.exceptions.RequestException as e:
-        logging.error(f"VirusTotal API error: {e}")
-        return None
+    except Exception as e:
+        logging.warning(f"VirusTotal error for IP {ip}: {e}")
+        return {"source": "VirusTotal", "error": str(e)}
+
+def validate_ip(ip_input):
+    """Validate and normalize IP address"""
+    try:
+        return str(ipaddress.ip_address(ip_input.strip()))
+    except ValueError:
+        raise ValueError("Invalid IP format")
 
 def main():
-    # Validate input
     try:
-        ip = input("Enter IP to check: ").strip()
-        ip = ipaddress.ip_address(ip)
-    except ValueError:
-        logging.error("Invalid IP address. Please try again.")
-        exit()
+        ip_input = input("Enter an IP address to check: ")
+        ip = validate_ip(ip_input)
+    except ValueError as ve:
+        logging.error(ve)
+        sys.exit(2)
 
-    # Query APIs
-    logging.info("Querying AbuseIPDB...")
-    abuse_result = check_abuseipdb(str(ip))
+    logging.info(f"Checking reputation for IP: {ip}")
 
-    logging.info("Querying VirusTotal...")
-    vt_result = check_virustotal(str(ip))
+    abuse_result = check_abuseipdb(ip)
+    vt_result = check_virustotal(ip)
 
-    # Combine results
     report = {
-        "IP": str(ip),
+        "IP": ip,
         "AbuseIPDB": abuse_result,
         "VirusTotal": vt_result
     }
 
-    # Output report
     print(json.dumps(report, indent=4))
 
 if __name__ == "__main__":
